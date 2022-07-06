@@ -1,0 +1,105 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: my-web-app-template
+  annotations:
+    description: "A template to deploy my web app"
+    tags: "web,nodejs"
+objects:
+  - apiVersion: apps.openshift.io/v1
+    kind: DeploymentConfig
+    metadata:
+      name: "${NAME}"
+      labels:
+        app: "${NAME}"
+    spec:
+      replicas: ${{REPLICAS}}
+      selector:
+          app: "${NAME}"
+      template:
+        metadata:
+          labels:
+            app: "${NAME}"
+        spec:
+          containers:
+            - name: frontend
+              image: "${IMAGE_NAME}:production"
+              imagePullPolicy: Always
+              ports:
+                - containerPort: ${{PORT}}
+      triggers:
+        - type: "ImageChange" 
+          imageChangeParams:
+            automatic: true
+            containerNames: ["frontend"]
+            from:
+              kind: "ImageStreamTag"
+              name: "${IMAGE_NAME}:production"
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: "${NAME}"
+    spec:
+      selector:
+        app: "${NAME}"
+      ports:
+        - protocol: TCP
+          port: ${{PORT}}
+          targetPort: ${{PORT}}
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: "${NAME}"
+    spec:
+      rules:
+        - host: "${INGRESS_HOST}"
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: "${NAME}"
+                    port:
+                      number: ${{PORT}}
+  - apiVersion: image.openshift.io/v1
+    kind: ImageStream
+    metadata:
+      name: "${IMAGE_NAME}"
+    spec:
+      lookupPolicy:
+        local: true
+      tags:
+        - name: production
+          from:
+            kind: DockerImage
+            name: "${REGISTRY}/${REGISTRY_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+          importPolicy:
+            scheduled: true
+          referencePolicy:
+            type: Source
+parameters:
+  - name: NAME
+    description: Name of the app
+    value: my-web-app
+  - name: REGISTRY
+    description: The registry URL
+    value: index.docker.io
+  - name: REGISTRY_NAMESPACE
+    description: Namespace inside the registry
+    value: my-username
+  - name: IMAGE_NAME
+    description: Name of the frontend container image
+    value: my-web-app
+  - name: IMAGE_TAG
+    description: Tag of the frontend container image
+    value: latest
+  - name: REPLICAS
+    description: Number of replicas
+    value: "2"
+  - name: PORT
+    description: The port for the frontend
+    value: "8080"
+  - name: INGRESS_HOST
+    description: The host to use for the ingress
+    value: "my-web-app.my-openshift-cluster.com"

@@ -1,0 +1,82 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: my-web-app-template
+  annotations:
+    description: "A template to deploy my web app"
+    tags: "web,nodejs"
+objects:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: "${NAME}-deployment"
+      labels:
+        app: "${NAME}"
+    spec:
+      replicas: ${{REPLICAS}}
+      selector:
+        matchLabels:
+          app: "${NAME}"
+      template:
+        metadata:
+          labels:
+            app: "${NAME}"
+        spec:
+          containers:
+            - name: frontend
+              image: "${REGISTRY}/${REGISTRY_NAMESPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+              imagePullPolicy: Always
+              ports:
+                - containerPort: ${{PORT}}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: "${NAME}"
+    spec:
+      selector:
+        app: "${NAME}"
+      ports:
+        - protocol: TCP
+          port: ${{PORT}}
+          targetPort: ${{PORT}}
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: "${NAME}-ingress"
+    spec:
+      rules:
+        - host: "${INGRESS_HOST}"
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: "${NAME}"
+                    port:
+                      number: ${{PORT}}
+parameters:
+  - name: NAME
+    description: Name of the app
+    value: my-web-app
+  - name: REGISTRY
+    description: The registry URL
+    value: index.docker.io
+  - name: REGISTRY_NAMESPACE
+    description: Namespace inside the registry
+    value: my-username
+  - name: IMAGE_NAME
+    description: Name of the frontend container image
+    value: my-web-app
+  - name: IMAGE_TAG
+    description: Tag of the frontend container image
+    value: v1
+  - name: REPLICAS
+    description: Number of replicas
+    value: "2"
+  - name: PORT
+    description: The port for the frontend
+    value: "8080"
+  - name: INGRESS_HOST
+    description: The host to use for the ingress
+    value: "my-web-app.my-openshift-cluster.com"
